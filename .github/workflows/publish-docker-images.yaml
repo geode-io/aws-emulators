@@ -1,0 +1,83 @@
+name: Publish Docker Images
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  publish-emulator-images:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        emulator:
+          - apig-websocket
+          - kinesis-subscription
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Github container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./images/emulator.Dockerfile
+          build-args: |
+            EMULATOR=${{ matrix.emulator }}-emulator
+          tags: |
+            ghcr.io/${{ github.repository }}/${{ matrix.emulator }}-emulator:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/${{ matrix.emulator }}-emulator:main
+            ghcr.io/${{ github.repository }}/${{ matrix.emulator }}-emulator:latest
+          platforms: linux/amd64,linux/arm64
+          push: true
+
+  basic-images:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image:
+          - localstack
+          - lambda-edge
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Github container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./images/${{ matrix.image }}.Dockerfile
+          tags: |
+            ghcr.io/${{ github.repository }}/${{ matrix.image }}:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/${{ matrix.image }}:main
+            ghcr.io/${{ github.repository }}/${{ matrix.image }}:latest
+          platforms: linux/amd64,linux/arm64
+          push: true

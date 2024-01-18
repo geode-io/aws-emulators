@@ -1,0 +1,68 @@
+version: "3.8"
+name: aws-emulators
+services:
+  aws:
+    image: localstack/localstack
+    pull_policy: always
+    ports:
+      - "4566:4566" # LocalStack Gateway
+      - "4510-4559:4510-4559" # external services port range
+    environment:
+      - LS_LOG=error
+      - EAGER_SERVICE_LOADING=1
+      - SERVICES=dynamodb,s3,kinesis
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - GATEWAY_LISTEN=${GATEWAY_LISTEN-0.0.0.0:4566}
+      - PERSISTENCE=1
+    volumes:
+      - "aws:/var/lib/localstack"
+      - "./offline/localstack/init/ready.d:/etc/localstack/init/ready.d"
+      - "./terraform:/etc/localstack/init/terraform"
+      - "tfbin:/dev/terraform"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    networks:
+      default:
+        aliases:
+          - s3.localhost.aws.cloud
+    depends_on:
+      - terraform
+    # profiles: all
+
+  terraform:
+    image: hashicorp/terraform:1.6
+    pull_policy: always
+    entrypoint: ["/bin/sh", "-c", "trap : TERM INT; sleep 9999999999d & wait"]
+    volumes:
+      - "tfbin:/bin"
+
+  api-gateway:
+    image: envoyproxy/envoy:v1.28-latest
+    pull_policy: always
+    ports:
+      - "8080:8080"
+    command: ["envoy", "-c", "/etc/envoy/envoy.yaml", "-l", "critical"]
+    volumes:
+      - ./offline/envoy.yaml:/etc/envoy/envoy.yaml
+
+  ws-gateway:
+    build:
+      context: .
+      dockerfile: images/emulator.Dockerfile
+      args:
+        - EMULATOR=apig-websocket-emulator
+    environment:
+      - AWS_REGION=us-east-1
+      - WEBSOCKET_API_STAGE=ws
+      - WEBSOCKET_API_PORT=8080
+      - MANAGEMENT_API_PORT=8081
+      - KINESIS_ENDPOINT=http://aws:4566
+      - KINESIS_STREAM=${KINESIS_STREAM-stream}
+      - LAMBDA_ENDPOINT=http://api-gateway:8080
+      - LAMBDA_FUNCTION_CONNECT=${LAMBDA_FUNCTION_CONNECT-connect}
+      - LAMBDA_FUNCTION_DISCONNECT=${LAMBDA_FUNCTION_DISCONNECT-disconnect}
+    depends_on:
+      - aws
+
+volumes:
+  aws:
+  tfbin:

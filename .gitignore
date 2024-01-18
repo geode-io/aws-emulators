@@ -1,0 +1,11 @@
+**/.terraform/
+**/*.tfstate*
+**/bin/
+**/out/
+**/dist/
+**/build/
+**/node_modules/
+**/.env*
+**/*.out
+**/*.log
+**/coverage.*
